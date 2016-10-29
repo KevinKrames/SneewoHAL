@@ -1,3 +1,4 @@
+package Bot;
 import java.util.TimerTask;
 
 
@@ -20,7 +21,7 @@ public class BotTT extends TimerTask {
 
     public void run( ) {
 
-        bot.update();
+        //bot.update();
 
     }
 

@@ -5,6 +5,8 @@ import java.io.IOException;
 import java.io.FileReader;
 import java.io.BufferedReader;
 
+import Bot.*;
+
 import org.languagetool.JLanguageTool;
 import org.languagetool.language.AmericanEnglish;
 import org.languagetool.rules.Rule;
@@ -25,11 +27,13 @@ public class MegaHAL {
 
 	// Hidden Markov first_attempt.Model
 	private final Model model;
+	public DatabaseManager databaseManager;
 
 	// Parsing utilities
 	public Splitter splitter;
 	private boolean dirty;
 
+	private Stemmer stemmer;
 	private Set badWords;
 	private Set spellIgnores;
 	private Set smallWords;
@@ -44,7 +48,7 @@ public class MegaHAL {
 	 *
 	 * @throws IOException if an error occurs reading the configuration.
 	 */
-	public MegaHAL(boolean dirty) throws IOException {
+	public MegaHAL(boolean dirty, Stemmer stemmer, DatabaseManager databaseManager) throws IOException {
 		/*
 		 * 0. Initialise. Add the special "<BEGIN>" and "<END>" symbols to the
 		 * dictionary. Ex: 0:"<BEGIN>", 1:"<END>"
@@ -53,7 +57,8 @@ public class MegaHAL {
 		 */
 		//dictionary.add("<BEGIN>");
 		//dictionary.add("<END>");
-
+		this.stemmer = stemmer;
+		this.databaseManager = databaseManager;
 		this.dirty = dirty;
 		swapWords = Utils.readSymbolMapFromFile("files/swap.txt");
 		Set<Symbol> banWords = Utils.readSymbolSetFromFile("files/ban.txt");
@@ -74,7 +79,7 @@ public class MegaHAL {
 		SymbolFactory symbolFactory = new SymbolFactory(new SimpleKeywordChecker(banWords, auxWords));
 		splitter = new WordNonwordSplitter(symbolFactory);
 
-		model = new Model(badWords, spellIgnores, this);
+		model = new Model(badWords, spellIgnores, this, stemmer, databaseManager);
 
 		BufferedReader reader = new BufferedReader(new FileReader("files/log.txt"));
 		String line;

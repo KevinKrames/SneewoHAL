@@ -1,9 +1,8 @@
+package Bot;
 import org.pircbotx.Configuration;
 import org.pircbotx.PircBotX;
 import org.pircbotx.hooks.ListenerAdapter;
 import org.pircbotx.hooks.types.GenericMessageEvent;
-import org.pircbotx.hooks.events.MessageEvent;
-
 import java.util.Timer;
 import java.util.Random;
 import java.util.List;
@@ -27,22 +26,25 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 
-//Static class for global functions to be referenced throughout the project
-public class TwitchListener extends ListenerAdapter {
+//Class to hold the message data from different clients
+public class Message {
 	//Instantiate variables
-	public Bot bot;
-	//Constructor
-	public TwitchListener(Bot bot) {
-		this.bot = bot;
+	public String message, sender, channel, type = "";
+	public boolean isMod, isOwner = false;
+	public long time;
+	
+	//Message constructor
+	public Message() {
 	}
 
-	@Override
-	//Generic on message received event:
-    public void onMessage(MessageEvent event)  {
-    	//Make sure our bot is initialized
-    	if (bot != null) {
-    		Message message = new Message(event.getMessage(), event.getUser().getNick(), event.getChannel().getName(), "twitch", System.currentTimeMillis(),  false, false);
-    		bot.newMessages.add(message);
-    	}// end of bot null check
-    }// end of on generic message
-}//end of twitch listener class
+	//Message constructor
+	public Message(String message, String sender, String channel, String type, long time, boolean isMod, boolean isOwner) {
+		this.message = message;
+		this.sender = sender;
+		this.channel = channel;
+		this.type = type;
+		this.isMod = isMod;
+		this.isOwner = isOwner;
+		this.time = time;
+	}
+}

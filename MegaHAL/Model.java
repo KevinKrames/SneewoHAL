@@ -1,17 +1,15 @@
 package MegaHAL;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
-import java.util.Collections;
-import java.util.ArrayList;
 import java.util.Set;
 
-import org.languagetool.JLanguageTool;
-import org.languagetool.language.AmericanEnglish;
-import org.languagetool.rules.RuleMatch;
+import Bot.Stemmer;
 
 /**
  * Class implementing the language model used by MegaHAL to record text it sees.
@@ -30,6 +28,8 @@ public class Model {
 	 */
 	private TrieNode forwardTrie;
 	private MegaHAL mega;
+	private Stemmer stemmer;
+	public DatabaseManager databaseManager;
 
 	/**
 	 * The backward trie.
@@ -49,11 +49,15 @@ public class Model {
 	}
 
 
-	public Model(Set<String> badWords, Set<String> spellIgnores, MegaHAL mega) {
+	public Model(Set<String> badWords, Set<String> spellIgnores, MegaHAL mega, Stemmer stemmer, DatabaseManager databaseManager) {
 		this(4);
 		this.badWords = badWords;
 		this.spellIgnores = spellIgnores;
 		this.mega = mega;
+		this.stemmer = stemmer;
+		this.databaseManager = databaseManager;
+		this.forwardTrie = new TrieNode(databaseManager);
+		this.backwardTrie = new TrieNode(databaseManager);
 	}
 
 
@@ -65,8 +69,6 @@ public class Model {
 	 */
 	public Model(int order) {
 		this.order = order;
-		this.forwardTrie = new TrieNode();
-		this.backwardTrie = new TrieNode();
 	}
 
 	public int getOrder() {
@@ -82,13 +84,21 @@ public class Model {
 	 * @return the trie node representing the last symbol in the list, in the context of the symbols before it.
 	 */
 	private TrieNode findLongestContext(TrieNode trie, List<Symbol> symbols) {
+		
 		int start = symbols.size() - order;
 		if (start < 0) {
 			start = 0;
 		}
 		TrieNode node = trie;
+		TrieNode nextNode;
 		for (int i = start; i < symbols.size(); i++) {
-			node = node.getChild(symbols.get(i), false);
+			
+			nextNode = node.getChild(symbols.get(i), false, stemmer, databaseManager);
+			if (nextNode == null) {
+				//System.out.print("1");
+				break;
+			}
+			node = nextNode;
 		}
 		return node;
 	}
@@ -135,7 +145,7 @@ public class Model {
 			// Iterate over the five symbols occurring at the current position.
 			for (int j = i; j < i + order + 1 && j < symbols.size(); j++) {
 				Symbol symbol = symbols.get(j);
-				TrieNode child = node.getChild(symbol, true);
+				TrieNode child = node.getChild(symbol, true, stemmer, databaseManager);
 				child.usage++;
 				node.count++;
 				node = child;
@@ -232,7 +242,7 @@ public class Model {
 		int total = rng.nextInt(node.count); // remember, our 'count' is the total of all children's 'usages'
 
 		// Pick a random number, which will be used as an initial index into the list of children.
-		List childNodes = node.getChildList();
+		List childNodes = node.getChildList(databaseManager);
 		int index = rng.nextInt(childNodes.size());
 
 		TrieNode subnode;
@@ -397,7 +407,7 @@ public class Model {
 			TrieNode parent = null;
 			for (int j = i; j < symbols.size(); j++) {
 				parent = node;
-				node = trie.getChild(symbols.get(i), false);
+				node = trie.getChild(symbols.get(i), false, stemmer, databaseManager);
 			}
 			assert parent != null; // because there is at least one symbol.
 			total += (double) node.usage / (double) parent.count;

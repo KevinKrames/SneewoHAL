@@ -1,3 +1,4 @@
+package Bot;
 import java.util.ArrayList;
 
 import org.json.simple.JSONObject;

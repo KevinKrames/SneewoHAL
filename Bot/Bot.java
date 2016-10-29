@@ -1,3 +1,4 @@
+package Bot;
 import org.pircbotx.Configuration;
 import org.pircbotx.PircBotX;
 import org.pircbotx.hooks.ListenerAdapter;
@@ -17,7 +18,7 @@ import twitter4j.TwitterFactory;
 import twitter4j.conf.ConfigurationBuilder;
 
 //Static class for global functions to be referenced throughout the project
-public class Bot {
+public class Bot extends Thread {
 	//Instantiate variables
 	public TwitchListener twitchListener = null;
 	public PircBotX twitchBot = null;
@@ -28,15 +29,16 @@ public class Bot {
 	public ArrayList<String> banFits = null;
 	public ArrayList<String> spellIgnores = null;
 	public ArrayList<Channel> channelObjects = null;
-	public ArrayList<Message> newMessages = new ArrayList<Message>();
-	public ArrayList<Message> messages = new ArrayList<Message>();
+	public List<Message> newMessages = Collections.synchronizedList(new ArrayList<Message>());
+	//public ArrayList<Message> messages = new ArrayList<Message>();
 	public ArrayList<User> users = null;
 	public ArrayList<String> lastWords = new ArrayList<String>();
 	public Stemmer stemmer = new Stemmer();
 	public String owner = "";
 	private boolean userLock = false;
-	private Timer timer = new Timer(true);
+	//private Timer timer = new Timer(true);
 	public MegaHAL mega;
+	public DatabaseManager databaseManager;
 	//public MegaHAL megaDirty;
 	char commandChar = '!';
 
@@ -50,6 +52,7 @@ public class Bot {
 
 	//Bot constructor
 	public Bot() {
+		databaseManager = new DatabaseManager();
 		channels = BotUtilities.readFile("files/channels.txt");
 		if (BotUtilities.readObjectFromFile("files/channels.json") != null) {
 			//File exists:
@@ -62,15 +65,18 @@ public class Bot {
 			}
 			BotUtilities.saveChannels("files/channels.json", channelObjects);
 		}
+		//Initialize DatabaseManager
+		
 		mods = BotUtilities.readFile("files/mods.txt");
 		ignores = BotUtilities.readFile("files/ignores.txt");
 		badWords = BotUtilities.readFile("files/badWords.txt");
 		spellIgnores = BotUtilities.readFile("files/spellIgnores.txt");
 		owner = dbids.twitchOwner;
-		BotTT timerTask = new BotTT(this);
-		timer.scheduleAtFixedRate(timerTask, 0, 500);
+		//BotTT timerTask = new BotTT(this);
+		//timer.scheduleAtFixedRate(timerTask, 0, 500);
+		
 		try {
-			mega = new MegaHAL(false);
+			mega = new MegaHAL(false, stemmer, databaseManager);
 			//megaDirty = new MegaHAL(true);
 		} catch (IOException e) {
 
@@ -93,11 +99,13 @@ public class Bot {
 		//
 		//TWITTER DONE
 		//
+		start();
 	}
 
 
 	//Main function that updates at the given timer task rate
-	public void update() {
+	public void run() {
+		while (true) {
 		//update timers
 		for (int i = 0; i < channelObjects.size(); i++) {
 			if (channelObjects.get(i).fitsTimer % 15 == 10) {
@@ -113,74 +121,74 @@ public class Bot {
 				//System.out.println("" + (Integer.parseInt(timers.get(i))-1));
 			}
 		}
-
+		/*
 		//We have some messages to parse:
 		if (newMessages != null) {
 			if (newMessages.size() > 0) {
 				messages = newMessages;
 			}
 		}
-		newMessages = new ArrayList<Message>();
-
+		newMessages = new ArrayList<Message>();*/
+		synchronized (newMessages) {
 		//loop thru all the messages
-		for (int i = 0; i < messages.size(); i++) {
+		for (int i = 0; i < newMessages.size(); i++) {
 			//if the message is not 0 length
-			if (messages.get(i).message != null) {
+			if (newMessages.get(i).message != null) {
 				//print out the message to the console:
-				System.out.println(messages.get(i).channel + " " + messages.get(i).type + " " + messages.get(i).time + " " + messages.get(i).sender+":"+messages.get(i).message);
+				System.out.println(newMessages.get(i).channel + " " + newMessages.get(i).type + " " + newMessages.get(i).time + " " + newMessages.get(i).sender+":"+newMessages.get(i).message);
 
 				//check if correct sneep guess:
 
 
-				if (messages.get(i).message.length() > 0) {
-					if (messages.get(i).message.charAt(0) == commandChar) {
+				if (newMessages.get(i).message.length() > 0) {
+					if (newMessages.get(i).message.charAt(0) == commandChar) {
 						//This is a command, handle it
-						this.handleCommands(messages.get(i));
+						this.handleCommands(newMessages.get(i));
 					} else {
 						//If the person is not ignored:
-						if (!ignores.contains(messages.get(i).sender.toLowerCase())) {
+						if (!ignores.contains(newMessages.get(i).sender.toLowerCase())) {
 							//else record the message to local files
-							BotUtilities.addLineToFile(messages.get(i).channel + " " + messages.get(i).type + " " + messages.get(i).time + " " + messages.get(i).sender + ":" + messages.get(i).message, "files/log.txt");
+							BotUtilities.addLineToFile(newMessages.get(i).channel + " " + newMessages.get(i).type + " " + newMessages.get(i).time + " " + newMessages.get(i).sender + ":" + newMessages.get(i).message, "files/log.txt");
 
 
 							//Dont speak if theres a fits running:
-							if (BotUtilities.getChannelWithName(messages.get(i).channel.toLowerCase(), channelObjects).fitsTimer > 0) {
+							if (BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).fitsTimer > 0) {
 								//We are playing the snee game here
-								if (messages.get(i).message.toLowerCase().contains(BotUtilities.getChannelWithName(messages.get(i).channel.toLowerCase(), channelObjects).answer.toLowerCase())) {
+								if (newMessages.get(i).message.toLowerCase().contains(BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).answer.toLowerCase())) {
 
-									lastWords.add(BotUtilities.getChannelWithName(messages.get(i).channel.toLowerCase(), channelObjects).answer.toLowerCase());
+									lastWords.add(BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).answer.toLowerCase());
 									if (lastWords.size() > 5) {
 										lastWords.remove(lastWords.get(0));
 									}
 
-									BotUtilities.getChannelWithName(messages.get(i).channel.toLowerCase(), channelObjects).fitsTimer = 0;
+									BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).fitsTimer = 0;
 									ArrayList<String> local = new ArrayList<String>();
 									ArrayList<String> global = new ArrayList<String>();
 									//System.out.print("1");
-									ArrayList<String> tempArray = BotUtilities.readFile("files/sneeps" + messages.get(i).channel + ".txt");
-									ArrayList<String> tempNames = BotUtilities.readFile("files/sneeps" + messages.get(i).channel + "Names.txt");
+									ArrayList<String> tempArray = BotUtilities.readFile("files/sneeps" + newMessages.get(i).channel + ".txt");
+									ArrayList<String> tempNames = BotUtilities.readFile("files/sneeps" + newMessages.get(i).channel + "Names.txt");
 									//System.out.print("2");
-									BotUtilities.addOne(tempNames, tempArray, messages.get(i).sender, 1);
+									BotUtilities.addOne(tempNames, tempArray, newMessages.get(i).sender, 1);
 									//System.out.print("3");
-									BotUtilities.writeFile(tempArray, "files/sneeps" + messages.get(i).channel + ".txt");
-									BotUtilities.writeFile(tempNames, "files/sneeps" + messages.get(i).channel + "Names.txt");
+									BotUtilities.writeFile(tempArray, "files/sneeps" + newMessages.get(i).channel + ".txt");
+									BotUtilities.writeFile(tempNames, "files/sneeps" + newMessages.get(i).channel + "Names.txt");
 									//System.out.print("4");
-									local = BotUtilities.getValues(tempNames, tempArray, messages.get(i).sender);
+									local = BotUtilities.getValues(tempNames, tempArray, newMessages.get(i).sender);
 									//System.out.print("5");
 
 									tempArray = BotUtilities.readFile("files/sneeps.txt");
 									tempNames = BotUtilities.readFile("files/sneepsNames.txt");
-									BotUtilities.addOne(tempNames, tempArray, messages.get(i).sender, 1);
+									BotUtilities.addOne(tempNames, tempArray, newMessages.get(i).sender, 1);
 									BotUtilities.writeFile(tempArray, "files/sneeps.txt");
 									BotUtilities.writeFile(tempNames, "files/sneepsNames.txt");
-									global = BotUtilities.getValues(tempNames, tempArray, messages.get(i).sender);
+									global = BotUtilities.getValues(tempNames, tempArray, newMessages.get(i).sender);
 
-									twitchBot.send().message(messages.get(i).channel, "Congrats " + messages.get(i).sender + "! You won! Sneeps: " + local.get(1));
+									twitchBot.send().message(newMessages.get(i).channel, "Congrats " + newMessages.get(i).sender + "! You won! Sneeps: " + local.get(1));
 								}
 							} else {
 								//Check for random speak:
 								int chanceToSpeak = 0;
-								switch (BotUtilities.getChannelWithName(messages.get(i).channel.toLowerCase(), channelObjects).frequency) {
+								switch (BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).frequency) {
 								case "very low":
 									chanceToSpeak = 3;
 									break;
@@ -207,34 +215,36 @@ public class Bot {
 								}
 								HashMap tempMap = (HashMap)mega.keywordMemory.get(messages.get(i).channel.toLowerCase());*/
 
-								if (messages.get(i).message.toLowerCase().contains("sneewo") || rng.nextInt(100) <= chanceToSpeak) {
+								if (newMessages.get(i).message.toLowerCase().contains("sneewo") || rng.nextInt(100) <= chanceToSpeak) {
 
 									//If we are not mute
-									if (!BotUtilities.getChannelWithName(messages.get(i).channel.toLowerCase(), channelObjects).mute && dbids.speak) {
+									if (!BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).mute && dbids.speak) {
 										String reply = null;
-										if (BotUtilities.getChannelWithName(messages.get(i).channel.toLowerCase(), channelObjects).dirty) {
+										if (BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).dirty) {
 											//reply = megaDirty.formulateReply(messages.get(i).message, messages.get(i).channel);
 										} else {
-											reply = mega.formulateReply(messages.get(i).message, messages.get(i).channel);
+											reply = mega.formulateReply(newMessages.get(i).message, newMessages.get(i).channel);
 										}
 										if (reply != null) {
-											twitchBot.send().message(messages.get(i).channel, reply);
+											twitchBot.send().message(newMessages.get(i).channel, reply);
 
-											System.out.println("Sent message in " + messages.get(i).channel + ":" + reply);
+											System.out.println("Sent message in " + newMessages.get(i).channel + ":" + reply);
 										}
 									}
 								} else {
 									//else learn the message:
-									mega.trainOnly(messages.get(i).message, messages.get(i).channel);
+									mega.trainOnly(newMessages.get(i).message, newMessages.get(i).channel);
 									//megaDirty.trainOnly(messages.get(i).message, messages.get(i).channel);
 								}
 							}
 						}
 					}
 				}
+				newMessages.remove(newMessages.get(i));
 			}
 		}
-		messages.clear();
+		}//end of syncronized
+		}
 	}
 
 	private void handleCommands(Message message) {

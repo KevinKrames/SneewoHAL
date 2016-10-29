@@ -1,3 +1,4 @@
+package Bot;
 import java.util.Iterator;
 import java.util.Timer;
 import java.util.Random;
