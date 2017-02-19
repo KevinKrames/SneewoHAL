@@ -4,6 +4,7 @@ import java.util.*;
 import java.io.IOException;
 import java.io.FileReader;
 import java.io.BufferedReader;
+import java.io.FileNotFoundException;
 
 import Bot.*;
 
@@ -31,7 +32,7 @@ public class MegaHAL {
 
 	// Parsing utilities
 	public Splitter splitter;
-	private boolean dirty;
+	public boolean dirty;
 
 	private Stemmer stemmer;
 	private Set badWords;
@@ -39,6 +40,7 @@ public class MegaHAL {
 	private Set smallWords;
 	public JLanguageTool languageTool = new JLanguageTool(new AmericanEnglish());
 	public HashMap keywordMemory = new HashMap();
+	public String channel;
 
 	// Random Number Generator
 	private final Random rng = new Random();
@@ -48,7 +50,7 @@ public class MegaHAL {
 	 *
 	 * @throws IOException if an error occurs reading the configuration.
 	 */
-	public MegaHAL(boolean dirty, Stemmer stemmer, DatabaseManager databaseManager) throws IOException {
+	public MegaHAL(boolean dirty, Stemmer stemmer, DatabaseManager databaseManager, String channel) throws IOException {
 		/*
 		 * 0. Initialise. Add the special "<BEGIN>" and "<END>" symbols to the
 		 * dictionary. Ex: 0:"<BEGIN>", 1:"<END>"
@@ -57,6 +59,7 @@ public class MegaHAL {
 		 */
 		//dictionary.add("<BEGIN>");
 		//dictionary.add("<END>");
+		this.channel = channel;
 		this.stemmer = stemmer;
 		this.databaseManager = databaseManager;
 		this.dirty = dirty;
@@ -81,6 +84,10 @@ public class MegaHAL {
 
 		model = new Model(badWords, spellIgnores, this, stemmer, databaseManager);
 
+		//trainSelf();
+	}
+	
+	public void trainSelf() throws IOException {
 		BufferedReader reader = new BufferedReader(new FileReader("files/log.txt"));
 		String line;
 		int trainCount = 0;
@@ -88,6 +95,11 @@ public class MegaHAL {
 			line = line.trim();
 			if (line.length() == 0) {
 				continue;
+			}
+			if (line != null) {
+				if (!line.split(" ")[0].equalsIgnoreCase(channel) && !this.channel.equalsIgnoreCase("global")) {
+					continue;
+				}
 			}
 			line = line.substring(line.indexOf(":")+1);
 

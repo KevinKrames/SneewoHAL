@@ -3,12 +3,15 @@ import java.util.ArrayList;
 
 import org.json.simple.JSONObject;
 
+import MegaHAL.MegaHAL;
+
 //Class to hold date for individual channels
 public class Channel {
 	public String name, frequency, answer;
 	public boolean mute, dirty;
-	public int fitsTimer;
-	
+	public Long fitsTime, fitsState;
+
+	public MegaHAL mega, megaDirty;
 	
 	public Channel() {
 		
@@ -22,7 +25,8 @@ public class Channel {
 		this.frequency = "medium";
 		this.mute = false;
 		this.dirty = false;
-		this.fitsTimer = 0;
+		this.fitsTime = (long) 0;
+		this.fitsState = (long) 0;
 	}
 	
 	/*
@@ -35,7 +39,8 @@ public class Channel {
 			this.frequency = (String) obj.get("frequency");
 			this.mute = (boolean) obj.get("mute");
 			this.dirty = (boolean) obj.get("dirty");
-			this.fitsTimer = 0;
+			this.fitsTime = (long) 0;
+			this.fitsState = (long) 0;
 			this.answer = "";
 		}
 	}

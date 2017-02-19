@@ -9,7 +9,12 @@ public abstract class KeywordChecker {
     public abstract boolean isKeyword(String symbol);
 
     public boolean isWord(String symbol) {
+    	try {
         return isWordCharacter(symbol.charAt(0));
+    	} catch (Exception e) {
+    		e.printStackTrace();
+    	}
+    	return false;
     }
 
     public boolean isWordCharacter(char ch) {

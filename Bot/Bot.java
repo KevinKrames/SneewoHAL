@@ -1,4 +1,9 @@
 package Bot;
+import marytts.LocalMaryInterface;
+import marytts.MaryInterface;
+import marytts.exceptions.MaryConfigurationException;
+import marytts.util.data.audio.AudioPlayer;
+
 import org.pircbotx.Configuration;
 import org.pircbotx.PircBotX;
 import org.pircbotx.hooks.ListenerAdapter;
@@ -8,6 +13,8 @@ import MegaHAL.*;
 
 import java.util.*;
 import java.io.*;
+
+import javax.sound.sampled.AudioInputStream;
 
 import org.languagetool.*;
 import org.languagetool.language.AmericanEnglish;
@@ -37,9 +44,10 @@ public class Bot extends Thread {
 	public String owner = "";
 	private boolean userLock = false;
 	//private Timer timer = new Timer(true);
-	public MegaHAL mega;
 	public DatabaseManager databaseManager;
-	//public MegaHAL megaDirty;
+	
+	public MegaHAL megaDirty, mega;
+	
 	char commandChar = '!';
 
 	Twitter twitter;
@@ -72,11 +80,14 @@ public class Bot extends Thread {
 		badWords = BotUtilities.readFile("files/badWords.txt");
 		spellIgnores = BotUtilities.readFile("files/spellIgnores.txt");
 		owner = dbids.twitchOwner;
-		//BotTT timerTask = new BotTT(this);
-		//timer.scheduleAtFixedRate(timerTask, 0, 500);
 		
 		try {
-			mega = new MegaHAL(false, stemmer, databaseManager);
+			mega = new MegaHAL(false, stemmer, databaseManager, "global");
+			megaDirty = new MegaHAL(true, stemmer, databaseManager, "global");
+			for (int i = 0; i < channelObjects.size(); i++) {
+				channelObjects.get(i).mega = new MegaHAL(false, stemmer, databaseManager, channelObjects.get(i).name);
+				channelObjects.get(i).megaDirty = new MegaHAL(true, stemmer, databaseManager, channelObjects.get(i).name);
+			}
 			//megaDirty = new MegaHAL(true);
 		} catch (IOException e) {
 
@@ -108,17 +119,37 @@ public class Bot extends Thread {
 		while (true) {
 		//update timers
 		for (int i = 0; i < channelObjects.size(); i++) {
-			if (channelObjects.get(i).fitsTimer % 15 == 10) {
-				String temp = mega.formulateReply(channelObjects.get(i).answer, "");
+			if (channelObjects.get(i).fitsState >= 0) {
+				MegaHAL currentMega = channelObjects.get(i).dirty?channelObjects.get(i).mega:channelObjects.get(i).megaDirty;
+			if (System.currentTimeMillis() - channelObjects.get(i).fitsTime > 1000 && channelObjects.get(i).fitsState >= 5) {
+				String temp = currentMega.formulateReply(channelObjects.get(i).answer, "");
 				if (BotUtilities.addUnderscores(temp, channelObjects.get(i).answer) != null)
 				twitchBot.send().message(channelObjects.get(i).name, BotUtilities.addUnderscores(temp, channelObjects.get(i).answer));
+				channelObjects.get(i).fitsState--;
 			}
-			if (channelObjects.get(i).fitsTimer == 1) {
+			if (System.currentTimeMillis() - channelObjects.get(i).fitsTime > 8000 && channelObjects.get(i).fitsState == 4) {
+				String temp = currentMega.formulateReply(channelObjects.get(i).answer, "");
+				if (BotUtilities.addUnderscores(temp, channelObjects.get(i).answer) != null)
+				twitchBot.send().message(channelObjects.get(i).name, BotUtilities.addUnderscores(temp, channelObjects.get(i).answer));
+				channelObjects.get(i).fitsState--;
+			}
+			if (System.currentTimeMillis() - channelObjects.get(i).fitsTime > 16000 && channelObjects.get(i).fitsState == 3) {
+				String temp = currentMega.formulateReply(channelObjects.get(i).answer, "");
+				if (BotUtilities.addUnderscores(temp, channelObjects.get(i).answer) != null)
+				twitchBot.send().message(channelObjects.get(i).name, BotUtilities.addUnderscores(temp, channelObjects.get(i).answer));
+				channelObjects.get(i).fitsState--;
+			}
+			if (System.currentTimeMillis() - channelObjects.get(i).fitsTime > 24000 && channelObjects.get(i).fitsState == 2) {
+				String temp = currentMega.formulateReply(channelObjects.get(i).answer, "");
+				if (BotUtilities.addUnderscores(temp, channelObjects.get(i).answer) != null)
+				twitchBot.send().message(channelObjects.get(i).name, BotUtilities.addUnderscores(temp, channelObjects.get(i).answer));
+				channelObjects.get(i).fitsState--;
+			}
+			if (System.currentTimeMillis() - channelObjects.get(i).fitsTime >= 30000 && channelObjects.get(i).fitsState == 1) {
 				twitchBot.send().message(channelObjects.get(i).name, "Times up no one guessed the answer: " + channelObjects.get(i).answer);
+				channelObjects.get(i).fitsTime = (long) 0;
+				channelObjects.get(i).fitsState = (long) 0;
 			}
-			if (channelObjects.get(i).fitsTimer > 0) {
-				channelObjects.get(i).fitsTimer--;
-				//System.out.println("" + (Integer.parseInt(timers.get(i))-1));
 			}
 		}
 		/*
@@ -152,7 +183,7 @@ public class Bot extends Thread {
 
 
 							//Dont speak if theres a fits running:
-							if (BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).fitsTimer > 0) {
+							if (BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).fitsState > 0) {
 								//We are playing the snee game here
 								if (newMessages.get(i).message.toLowerCase().contains(BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).answer.toLowerCase())) {
 
@@ -161,7 +192,8 @@ public class Bot extends Thread {
 										lastWords.remove(lastWords.get(0));
 									}
 
-									BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).fitsTimer = 0;
+									BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).fitsTime = (long) 0;
+									BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).fitsState = (long) 0;
 									ArrayList<String> local = new ArrayList<String>();
 									ArrayList<String> global = new ArrayList<String>();
 									//System.out.print("1");
@@ -220,11 +252,12 @@ public class Bot extends Thread {
 									//If we are not mute
 									if (!BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).mute && dbids.speak) {
 										String reply = null;
-										if (BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).dirty) {
-											//reply = megaDirty.formulateReply(messages.get(i).message, messages.get(i).channel);
-										} else {
-											reply = mega.formulateReply(newMessages.get(i).message, newMessages.get(i).channel);
-										}
+										
+											//reply = (BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).dirty?BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).megaDirty:BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).mega)
+														//.formulateReply(newMessages.get(i).message, newMessages.get(i).channel);\
+										
+										reply = mega.formulateReply(newMessages.get(i).message, newMessages.get(i).channel);
+										
 										if (reply != null) {
 											twitchBot.send().message(newMessages.get(i).channel, reply);
 
@@ -232,8 +265,10 @@ public class Bot extends Thread {
 										}
 									}
 								} else {
+									
 									//else learn the message:
-									mega.trainOnly(newMessages.get(i).message, newMessages.get(i).channel);
+									(BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).mega).trainOnly(newMessages.get(i).message, newMessages.get(i).channel);
+									(BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).megaDirty).trainOnly(newMessages.get(i).message, newMessages.get(i).channel);
 									//megaDirty.trainOnly(messages.get(i).message, messages.get(i).channel);
 								}
 							}
@@ -260,20 +295,66 @@ public class Bot extends Thread {
 		}
 
 		if (message.message.equalsIgnoreCase("!commands")) {
-			twitchBot.send().message(message.channel, "!help !join !leave !mute !unmute !ignore !unignore !banword !unbanword !spellignore !spellunignore");
+			twitchBot.send().message(message.channel, "!help !join !leave !mute !unmute !dirty !undirty MOD COMMANDS: !fits !ignore !unignore !banword !unbanword !spellignore !spellunignore");
 		}
 
-		if (message.message.equalsIgnoreCase("!help set")) {
-			twitchBot.send().message(message.channel, "To set how much sneewo speaks, use !set AMOUNT, where AMOUNT is one of these: very low, low, medium, high, or very high.");
+		/*
+		 * HELP COMMANDS
+		 */
+		if (message.message.equalsIgnoreCase("!help set") || message.message.equalsIgnoreCase("!help !set")) {
+			twitchBot.send().message(message.channel, "To set how much Sneewo speaks, use !set AMOUNT, where AMOUNT is one of these: very low, low, medium, high, or very high.");
 		}
-
+		if (message.message.equalsIgnoreCase("!help join") || message.message.equalsIgnoreCase("!help !join")) {
+			twitchBot.send().message(message.channel, "To have Sneewo join your chat use !join");
+		}
+		if (message.message.equalsIgnoreCase("!help leave") || message.message.equalsIgnoreCase("!help !leave")) {
+			twitchBot.send().message(message.channel, "To have Sneewo leave your chat use !leave");
+		}
+		if (message.message.equalsIgnoreCase("!help mute") || message.message.equalsIgnoreCase("!help !mute")) {
+			twitchBot.send().message(message.channel, "To mute Sneewo, you must be the owner of the chat or be a Sneewo mod and type !mute");
+		}
+		if (message.message.equalsIgnoreCase("!help unmute") || message.message.equalsIgnoreCase("!help !unmute")) {
+			twitchBot.send().message(message.channel, "To unmute Sneewo, you must be the owner of the chat or be a Sneewo mod and type !unmute");
+		}
+		if (message.message.equalsIgnoreCase("!help dirty") || message.message.equalsIgnoreCase("!help !dirty")) {
+			twitchBot.send().message(message.channel, "To remove Sneewo's bad word filter, you must be the owner of the chat or be a Sneewo mod and type !dirty");
+		}
+		if (message.message.equalsIgnoreCase("!help undirty") || message.message.equalsIgnoreCase("!help !undirty")) {
+			twitchBot.send().message(message.channel, "To add Sneewo's bad word filter, you must be the owner of the chat or be a Sneewo mod and type !undirty");
+		}
+		if (message.message.equalsIgnoreCase("!help fits") || message.message.equalsIgnoreCase("!help !fits")) {
+			twitchBot.send().message(message.channel, "Fill in the Sneewo is a mini game that mods can run in chat by typing !fits");
+		}
+		if (message.message.equalsIgnoreCase("!help banword") || message.message.equalsIgnoreCase("!help !banword")) {
+			twitchBot.send().message(message.channel, "To ignore a word in Sneewo's bad word filter, you must be a Sneewo mod and type !banword WORD");
+		}
+		if (message.message.equalsIgnoreCase("!help unbanword") || message.message.equalsIgnoreCase("!help !unbanword")) {
+			twitchBot.send().message(message.channel, "To unignore a word in Sneewo's bad word filter, you must be a Sneewo mod and type !unbanword WORD");
+		}
+		if (message.message.equalsIgnoreCase("!help ignore") || message.message.equalsIgnoreCase("!help !ignore")) {
+			twitchBot.send().message(message.channel, "To ignore a person in Sneewo's filter, you must be a Sneewo mod and type !ignore PERSON");
+		}
+		if (message.message.equalsIgnoreCase("!help unignore") || message.message.equalsIgnoreCase("!help !unignore")) {
+			twitchBot.send().message(message.channel, "To unignore a person in Sneewo's filter, you must be a Sneewo mod and type !unignore PERSON");
+		}
+		if (message.message.equalsIgnoreCase("!help spellignore") || message.message.equalsIgnoreCase("!help !spellignore")) {
+			twitchBot.send().message(message.channel, "To ignore spelling of a word in Sneewo's filter, you must be a Sneewo mod and type !spellignore WORD");
+		}
+		if (message.message.equalsIgnoreCase("!help unspellignore") || message.message.equalsIgnoreCase("!help !unspellignore")) {
+			twitchBot.send().message(message.channel, "To unignore spelling of a word in Sneewo's filter, you must be a Sneewo mod and type !unspellignore WORD");
+		}
+		
+/*
+ * MOD COMMANDS:
+ */
 		if ((isOwner == true || isMod == true) && (message.message.toLowerCase().equals("!fillinthesneewo") || message.message.toLowerCase().equals("!fits"))) {
 
-			if (BotUtilities.getChannelWithName(message.channel.toLowerCase(), channelObjects).fitsTimer == 0) {
+			if (BotUtilities.getChannelWithName(message.channel.toLowerCase(), channelObjects).fitsTime == 0) {
 				//START SNEEWO MINI GAME
-				twitchBot.send().message(message.channel, "Fill in the sneewo started! Sneewo will talk about a random word for 2 minutes, type the word in chat to guess what she is talking about and win sneeps!");
-				BotUtilities.getChannelWithName(message.channel.toLowerCase(), channelObjects).fitsTimer = 60;
-				String answer = getAnswer();
+				twitchBot.send().message(message.channel, "Fill in the sneewo started! Sneewo will talk about a random word for 30 seconds, type the word in chat to guess what she is talking about and win sneeps!");
+				BotUtilities.getChannelWithName(message.channel.toLowerCase(), channelObjects).fitsTime = System.currentTimeMillis();
+				String answer = getAnswer(BotUtilities.getChannelWithName(message.channel.toLowerCase(), channelObjects));
+				BotUtilities.getChannelWithName(message.channel.toLowerCase(), channelObjects).fitsState = (long)5;
 				BotUtilities.getChannelWithName(message.channel.toLowerCase(), channelObjects).answer = answer;
 			}
 		}
@@ -491,7 +572,9 @@ public class Bot extends Thread {
 					twitchBot.send().message(message.channel, "Banning word: " + message.message.substring(9).toLowerCase());
 					Collections.sort(badWords);
 					BotUtilities.writeFile(badWords, "files/badWords.txt");
-					mega.updateFiles();
+					for (int i = 0; i < channelObjects.size(); i++) {
+						channelObjects.get(i).mega.updateFiles();
+					}
 				} else {
 					twitchBot.send().message(message.channel, "That word is already banned.");
 				}
@@ -506,7 +589,9 @@ public class Bot extends Thread {
 					twitchBot.send().message(message.channel, "Unbanning word: " + message.message.substring(11).toLowerCase());
 					Collections.sort(badWords);
 					BotUtilities.writeFile(badWords, "files/badWords.txt");
-					mega.updateFiles();
+					for (int i = 0; i < channelObjects.size(); i++) {
+						channelObjects.get(i).mega.updateFiles();
+					}
 				} else {
 					twitchBot.send().message(message.channel, "That word is already unbanned.");
 				}
@@ -523,7 +608,10 @@ public class Bot extends Thread {
 							twitchBot.send().message(message.channel, "Banning fits word: " + message.message.substring(9).toLowerCase());
 							Collections.sort(banFits);
 							BotUtilities.writeFile(banFits, "files/banFits.txt");
-							mega.updateFiles();
+							for (int i = 0; i < channelObjects.size(); i++) {
+								channelObjects.get(i).mega.updateFiles();
+								channelObjects.get(i).megaDirty.updateFiles();
+							}
 						} else {
 							twitchBot.send().message(message.channel, "That word is already banned.");
 						}
@@ -538,7 +626,10 @@ public class Bot extends Thread {
 							twitchBot.send().message(message.channel, "Unbanning fits word: " + message.message.substring(11).toLowerCase());
 							Collections.sort(banFits);
 							BotUtilities.writeFile(banFits, "files/banFits.txt");
-							mega.updateFiles();
+							for (int i = 0; i < channelObjects.size(); i++) {
+								channelObjects.get(i).mega.updateFiles();
+								channelObjects.get(i).megaDirty.updateFiles();
+							}
 						} else {
 							twitchBot.send().message(message.channel, "That word is already unbanned.");
 						}
@@ -555,8 +646,12 @@ public class Bot extends Thread {
 					twitchBot.send().message(message.channel, "Ignoring Spelling Check: " + message.message.substring(13).toLowerCase());
 					Collections.sort(spellIgnores);
 					BotUtilities.writeFile(spellIgnores, "files/spellIgnores.txt");
-					mega.updateFiles();
-					mega.wordIgnore(message.message.substring(13).toLowerCase(), true);
+					for (int i = 0; i < channelObjects.size(); i++) {
+						channelObjects.get(i).mega.updateFiles();
+						channelObjects.get(i).megaDirty.updateFiles();
+						channelObjects.get(i).mega.wordIgnore(message.message.substring(13).toLowerCase(), true);
+						channelObjects.get(i).megaDirty.wordIgnore(message.message.substring(13).toLowerCase(), true);
+					}
 				} else {
 					twitchBot.send().message(message.channel, "That word is already spell Ignored.");
 				}
@@ -571,8 +666,12 @@ public class Bot extends Thread {
 					twitchBot.send().message(message.channel, "Unignoring Spelling Check: " + message.message.substring(15).toLowerCase());
 					Collections.sort(spellIgnores);
 					BotUtilities.writeFile(spellIgnores, "files/spellIgnores.txt");
-					mega.updateFiles();
-					mega.wordIgnore(message.message.substring(15).toLowerCase(), false);
+					for (int i = 0; i < channelObjects.size(); i++) {
+						channelObjects.get(i).mega.updateFiles();
+						channelObjects.get(i).megaDirty.updateFiles();
+						channelObjects.get(i).mega.wordIgnore(message.message.substring(15).toLowerCase(), false);
+						channelObjects.get(i).megaDirty.wordIgnore(message.message.substring(15).toLowerCase(), false);
+					}
 				} else {
 					twitchBot.send().message(message.channel, "That word is already not spell Ignored.");
 				}
@@ -587,7 +686,7 @@ public class Bot extends Thread {
 
 
 	//Function for getting an answer to FITS:
-	public String getAnswer() {
+	public String getAnswer(Channel channel) {
 		String answer = "";
 		boolean done = false;
 		Set banFitsTemp = null;
@@ -599,10 +698,11 @@ public class Bot extends Thread {
 		}
 		while (done == false) {
 			done = true;
-			String tempSentence = mega.formulateReply("", "");
+			MegaHAL currentMega = (channel.dirty?channel.mega:channel.megaDirty);
+			String tempSentence = currentMega.formulateReply("", "");
 			tempSentence = BotUtilities.removeSymbols(tempSentence);
 			tempSentence = BotUtilities.removeStrings(tempSentence, "smallWords.txt", true);
-			List<Symbol> newTriggers = mega.splitter.split(tempSentence);
+			List<Symbol> newTriggers = currentMega.splitter.split(tempSentence);
 			int randomNumber = rng.nextInt(newTriggers.size()-1);
 			answer = newTriggers.get(randomNumber).toString();
 

@@ -26,6 +26,8 @@ public class SymbolFactory {
      * @return the symbol.
      */
     public Symbol createSymbol(String symbol) {
+    	if (symbol == null)
+    		return null;
         return new Symbol(symbol, checker.isKeyword(symbol));
     }
 

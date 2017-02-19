@@ -56,8 +56,14 @@ public class Model {
 		this.mega = mega;
 		this.stemmer = stemmer;
 		this.databaseManager = databaseManager;
-		this.forwardTrie = new TrieNode(databaseManager);
-		this.backwardTrie = new TrieNode(databaseManager);
+		this.forwardTrie = databaseManager.getRootNode("f", mega.channel, mega.dirty);
+		if (this.forwardTrie == null) {
+			this.forwardTrie = new TrieNode(databaseManager, "f", mega.channel, mega.dirty);
+		}
+		this.backwardTrie = databaseManager.getRootNode("b", mega.channel, mega.dirty);
+		if (this.backwardTrie == null) {
+			this.backwardTrie = new TrieNode(databaseManager, "b", mega.channel, mega.dirty);
+		}
 	}
 
 
@@ -148,6 +154,8 @@ public class Model {
 				TrieNode child = node.getChild(symbol, true, stemmer, databaseManager);
 				child.usage++;
 				node.count++;
+
+	            databaseManager.updateDB(node, child);
 				node = child;
 			}
 		}

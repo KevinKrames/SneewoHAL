@@ -37,9 +37,13 @@ public class WordNonwordSplitter implements Splitter {
         symbolList.add(Symbol.START);
         if (text.length() > 0) {
         for (String temp : text.split(" ")) {
+        	if (temp.length() > 0) {
         	Symbol s = symbolFactory.createSymbol(temp);
-            if (s.toString() != " ")
+            if (s != null) {
+            	if (s.toString() != " ")
             	symbolList.add(s);
+            }
+        	}
         }
         }
 
