@@ -305,4 +305,9 @@ public class BotUtilities {
 		}
 		int i = 0;
 	}
+
+	public static void writeFile(List<String> ignores, String fileName) {
+		// TODO Auto-generated method stub
+		
+	}
 }

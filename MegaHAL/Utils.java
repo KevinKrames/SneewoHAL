@@ -83,6 +83,33 @@ public class Utils {
         return set;
     }
     
+    public static List<String> readStringListFromFile(String filename, boolean upper) throws IOException {
+        
+    	List<String> list = new ArrayList<String>();
+
+    	try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
+    	
+        String line;
+        while ((line = reader.readLine()) != null) {
+            line = line.trim();
+            if (line.length() == 0) {
+                continue;
+            }
+            if (line.charAt(0) == '#') {
+                continue;
+            }
+            if (upper)
+            	line = line.toUpperCase();
+            list.add(line);
+        }
+        reader.close();
+    } catch (IOException e) {
+		e.printStackTrace();
+	} 
+
+        return list;
+    }
+    
     public static String cleanSentence(String aSentence) {
     	String upper;
     	int index;
@@ -168,4 +195,15 @@ public class Utils {
   		//nothing bad in sentence
   		return false;
   	}
+  	
+  	public String encodeTrieNodeDataString(String s) {
+		s = s.replaceAll("\\", "\\u005c");
+		s = s.replaceAll("#", "\\u0023");
+		return s;
+	}
+	public String decodeTrieNodeDataString(String s) {
+		s = s.replaceAll("\\u0023", "#");
+		s = s.replaceAll("\\u005c", "\\");
+		return s;
+	}
 }

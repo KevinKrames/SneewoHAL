@@ -1,17 +1,17 @@
 package MegaHAL;
 import java.sql.Time;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 
 import Bot.Stemmer;
 
 /**
- * Represents a node in the language model.  Contains the symbol at this position, a count of the number of
- * times this context has occurred (usage), a list/map of children, and a total count of the usages of all its children
- * (count).
+ * A node of information about an important word used in creating sentences
  *
- * @author Trejkaz
+ * @author Moltov
  * @see TrieNodeMap
  */
 public class TrieNode {
@@ -19,64 +19,73 @@ public class TrieNode {
 	/**
 	 * Channel this node resides in
 	 */
-	String channel;
+	protected String channel;
     /**
      * The symbol which occurs at this node.
      */
-    Symbol symbol;
+	protected Symbol symbol;
+    
+    /**
+     * Path to the current symbol
+     */
+    protected String path;
     
     /**
      * Stem of the symbol word
      */
-    String stem;
+    protected String stem;
 
     /**
      * The number of times this context occurs.
      */
-    int usage;
+    protected int usage;
     
     /**
      * the current times this is getting used
      */
-    int currentUsage = 0;
+    protected int currentUsage = 0;
     
     /**
      * The time in milliseconds since the last use of this TrieNode
      */
-    Long timeSinceLastUse = System.currentTimeMillis();
+    protected Long timeSinceLastUse = System.currentTimeMillis();
     
     /**
      * Unique ID for TrieNode
      */
-    Long _id;
+    protected Long _id;
 
     /**
      * The total of the children's usages.
      */
-    int count;
+    protected int count;
 
     /**
      * whether or not this is a node that is in the dirty sneewo's mind
      */
-    boolean dirty;
+    protected boolean dirty;
     
     /**
      * The mapping of child symbols to TrieNode objects.
      */
-    public Map<String,Long> children;
+    protected TrieNodeMap children;
 
     /**
      * Constructs a root trie node.
      */
-    public TrieNode(DatabaseManager databaseManager, String direction, String channel, boolean dirty) {
-        this((Symbol)null, null, channel, dirty);
-        this.stem = direction;
-        databaseManager.createNode(_id, this);
+    //public TrieNode(DatabaseManager databaseManager, String direction, String channel, boolean dirty) {
+        //this((Symbol)null, null, channel, dirty);
+        //this.stem = direction;
+        //databaseManager.createNode(_id, this);
+    //}
+    public TrieNode(Symbol symbol, Symbol path, String stem, String channel, boolean dirty) {
+    	this(System.nanoTime(), symbol, stem, channel, 0, 0, dirty);
     }
-    public TrieNode(Symbol symbol, String stem, String channel, boolean dirty) {
-    	this(System.nanoTime(), symbol, stem, channel, 0, 0, null, dirty);
-    }
-    public TrieNode(Long id, Symbol symbol, String stem, String channel, int count, int usage, Map<String,Long> children, boolean dirty) {
+    
+    /**
+     * Global instance creation of a trienode, includes all features
+     */
+    public TrieNode(Long id, Symbol symbol, String stem, String channel, int count, int usage, boolean dirty) {
         this._id = id;
         this.symbol = symbol;
         this.stem = stem;
@@ -84,14 +93,12 @@ public class TrieNode {
         this.usage = usage;
         this.channel = channel;
         if (this.channel == null) {
-        	System.out.println("null channel error");
+        	//System.out.println("null channel error");
         }
         this.dirty = dirty;
-        if (children == null) {
-        	this.children = new HashMap<String,Long>();
-        } else {
-        	this.children = children;
-        }
+        if (children == null && symbol != Symbol.NULL) {
+        	this.children = new TrieNodeMap();
+        } 
     }
 
     /**
@@ -100,22 +107,18 @@ public class TrieNode {
      *
      * @param symbol the symbol we are searching for.
      * @param createIfNull if true, grows the tree if the child node did not exist.
+     * @param stemmer Pass in the reference to the stemmer.
+     * @param DatabaseManager Pass in a reference to the database manager
      * @return the trie node for this symbol, newly created if necessary.
      */
-    public TrieNode getChild(Symbol symbol, boolean createIfNull, Stemmer stemmer, DatabaseManager databaseManager) {
-    	TrieNode child = null;
-    	if(children.containsKey(symbol.toString())) {
-    		child = databaseManager.getChild(this, symbol.toString(), false);
-    	}
+    public TrieNode getChild(Symbol symbol, Symbol path, boolean createIfNull) {
+    	TrieNode child = children.get(symbol);
+    	//Create the child if it does not exist, record it inside of this map
         if (child == null && createIfNull) {
-            child = new TrieNode(symbol, stemmer.stem(symbol.toString()).toString(), channel, dirty);
-            
-            databaseManager.createNode(child.getID(), child);
-            children.put(child.getSymbol().toString(), child.getID());
-            //databaseManager.updateDB(this);
-            if (this.symbol != null) {
-            	//System.out.println("Symbol: " + this.symbol.toString() + ", add Child:" + symbol.toString() + " " + children.values().size());
-            }
+            child = new TrieNode(symbol, path, new String(Stemmer.stem(symbol.toString())), channel, dirty);
+            children.put(child, path);
+        } else if (createIfNull) {
+        	children.putPath(child, path);
         }
         return child;
     }
@@ -124,17 +127,24 @@ public class TrieNode {
 		return symbol;
 	}
 
-	public List getChildList(DatabaseManager databaseManager) {
-    	return databaseManager.getChildren(children, this);
-        //return children.getList();
+	@SuppressWarnings("unchecked")
+	public List getChildList() {
+    	return children.getMap();
     }
     
     public Long getID() {
     	return _id;
     }
     
-    public Map<String,Long> getChildren() {
+    public TrieNodeMap getChildren() {
     	return children;
     }
     
+    public Symbol getRandomPath(TrieNode node, Random rng) {
+    	return children.getRandomPath(node, rng);
+    }
+    
+    public String toString() {
+    	return "Symbol: " + this.symbol.toString();
+    }
 }

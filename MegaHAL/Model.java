@@ -2,6 +2,7 @@ package MegaHAL;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -29,6 +30,7 @@ public class Model {
 	private TrieNode forwardTrie;
 	private MegaHAL mega;
 	private Stemmer stemmer;
+	private Symbol[] transferSymbols;
 	public DatabaseManager databaseManager;
 
 	/**
@@ -37,41 +39,35 @@ public class Model {
 	private TrieNode backwardTrie;
 	private Set badWords;
 	private Set spellIgnores;
+
 	/**
 	 * Create a new model with the default order of 4.
 	 */
-	//Spell checker
-
-	
+	// Spell checker
 
 	public Model() {
 		this(4);
 	}
 
-
-	public Model(Set<String> badWords, Set<String> spellIgnores, MegaHAL mega, Stemmer stemmer, DatabaseManager databaseManager) {
+	public Model(Set<String> badWords, Set<String> spellIgnores, MegaHAL mega, Stemmer stemmer,
+			DatabaseManager databaseManager) {
 		this(4);
 		this.badWords = badWords;
 		this.spellIgnores = spellIgnores;
 		this.mega = mega;
 		this.stemmer = stemmer;
 		this.databaseManager = databaseManager;
-		this.forwardTrie = databaseManager.getRootNode("f", mega.channel, mega.dirty);
-		if (this.forwardTrie == null) {
-			this.forwardTrie = new TrieNode(databaseManager, "f", mega.channel, mega.dirty);
-		}
-		this.backwardTrie = databaseManager.getRootNode("b", mega.channel, mega.dirty);
-		if (this.backwardTrie == null) {
-			this.backwardTrie = new TrieNode(databaseManager, "b", mega.channel, mega.dirty);
-		}
+		this.forwardTrie = new TrieNode(Symbol.START, null, null, mega.channel, mega.dirty);
+		this.backwardTrie = new TrieNode(Symbol.END, null, null, mega.channel, mega.dirty);
+		this.transferSymbols = new Symbol[2];
 	}
 
-
 	/**
-	 * Create a new model with the given order.
-	 * The order is the maximum number of symbols which can occur in a given context.
+	 * Create a new model with the given order. The order is the maximum number
+	 * of symbols which can occur in a given context.
 	 *
-	 * @param order the desired order.
+	 * @param order
+	 *            the desired order.
 	 */
 	public Model(int order) {
 		this.order = order;
@@ -85,26 +81,38 @@ public class Model {
 	 * Finds the context associated with the end of the given list of symbols.
 	 * I'm not sure if I've named this appropriately...
 	 *
-	 * @param trie the trie to use.
-	 * @param symbols the list of symbols.
-	 * @return the trie node representing the last symbol in the list, in the context of the symbols before it.
+	 * @param trie
+	 *            the trie to use.
+	 * @param symbols
+	 *            the list of symbols.
+	 * @return the trie node representing the last symbol in the list, in the
+	 *         context of the symbols before it.
 	 */
 	private TrieNode findLongestContext(TrieNode trie, List<Symbol> symbols) {
-		
+
 		int start = symbols.size() - order;
 		if (start < 0) {
 			start = 0;
 		}
 		TrieNode node = trie;
-		TrieNode nextNode;
+		TrieNode nextNode = null;
+		Symbol unimportantSymbol = null;
+		String unimportantSymbolString = null;
 		for (int i = start; i < symbols.size(); i++) {
-			
-			nextNode = node.getChild(symbols.get(i), false, stemmer, databaseManager);
-			if (nextNode == null) {
-				//System.out.print("1");
-				break;
+			// If it's the unimportant node make sure we record it.
+			if (!(symbols.get(i) instanceof ImportantSymbol)) {
+				unimportantSymbol = symbols.get(i);
+			} else {
+				// Record the first imporant node
+				nextNode = node.getChild(symbols.get(i), unimportantSymbol, false);
+				
+				unimportantSymbol = null;
+				if (nextNode == null) {
+					// System.out.print("1");
+					break;
+				}
+				node = nextNode;
 			}
-			node = nextNode;
 		}
 		return node;
 	}
@@ -114,17 +122,16 @@ public class Model {
 	/**
 	 * Train the model with a list of symbols.
 	 *
-	 * @param symbols the list of symbols.
+	 * @param symbols
+	 *            the list of symbols.
 	 */
 	public void train(List<Symbol> symbols, String userText, String channel) {
-		// If there aren't enough symbols, then don't bother training from the list.
+		// If there aren't enough symbols, then don't bother training from the
+		// list.
 		if (symbols.size() < order + 1) {
 			return;
 		}
 
-		
-		
-		
 		// Train in the forward direction.
 		train(forwardTrie, symbols);
 
@@ -133,40 +140,61 @@ public class Model {
 		train(backwardTrie, symbols);
 		Collections.reverse(symbols);
 	}
-	
 
 	/**
-	 * For convenience, to avoid duplicating code.  This is called from the public train(List)
-	 * method, once for each of the forward and backward tries.
+	 * For convenience, to avoid duplicating code. This is called from the
+	 * public train(List) method, once for each of the forward and backward
+	 * tries.
 	 *
-	 * @param trie the trie to train.
-	 * @param symbols the list of symbols.
+	 * @param trie
+	 *            the trie to train.
+	 * @param symbols
+	 *            the list of symbols.
 	 */
 	private void train(TrieNode trie, List<Symbol> symbols) {
 
 		// Iterate from the start to the end of the list.
 		for (int i = 0; i < symbols.size(); i++) {
 			TrieNode node = trie;
+			Symbol unimportantSymbol = null;
+			String unimportantSymbolString = null;
 
 			// Iterate over the five symbols occurring at the current position.
 			for (int j = i; j < i + order + 1 && j < symbols.size(); j++) {
 				Symbol symbol = symbols.get(j);
-				TrieNode child = node.getChild(symbol, true, stemmer, databaseManager);
+				TrieNode child = null;
+				
+				// If it's the unimportant node make sure we record it.
+				if (!(symbol instanceof ImportantSymbol)) {
+					unimportantSymbol = symbol;
+				} else {
+					// Record the first imporant node
+					
+					child = node.getChild(symbol, unimportantSymbol, true);
+					unimportantSymbol = null;
+				}
+				
+				if (unimportantSymbol == null) {
 				child.usage++;
 				node.count++;
-
-	            databaseManager.updateDB(node, child);
 				node = child;
+				}
+
+				//databaseManager.updateDB(node, child);
+				
 			}
 		}
 	}
 
 	// ---------------- METHODS TO GENERATE RESPONSES ----------------
 	/**
-	 * Generates a list of random symbols, forming a random response to the given lists of keywords.
+	 * Generates a list of random symbols, forming a random response to the
+	 * given lists of keywords.
 	 *
-	 * @param rng a random number generator.
-	 * @param userKeywords the list of keywords from the user's input.
+	 * @param rng
+	 *            a random number generator.
+	 * @param userKeywords
+	 *            the list of keywords from the user's input.
 	 * @return the list of symbols generated.
 	 */
 	public List<Symbol> generateRandomSymbols(Random rng, List<Symbol> userKeywords) {
@@ -179,7 +207,7 @@ public class Model {
 			return null;
 		}
 
-		if (!symbols.get(symbols.size()-1).equals(Symbol.END)) {
+		if (!symbols.get(symbols.size() - 1).equals(Symbol.END)) {
 			return null;
 		}
 
@@ -189,7 +217,7 @@ public class Model {
 		if (symbols.size() < 1) {
 			return null;
 		}
-		if (!symbols.get(symbols.size()-1).equals(Symbol.START)) {
+		if (!symbols.get(symbols.size() - 1).equals(Symbol.START)) {
 			return null;
 		}
 
@@ -201,93 +229,138 @@ public class Model {
 	/**
 	 * Generates random symbols until a list terminator is found.
 	 *
-	 * @param trie the trie to use to generate the symbol.
-	 * @param symbols the current list of symbols.
-	 * @param rng a random number generator.
-	 * @param userKeywords the list of keywords from the user's input.
-	 * @param stopSymbol the magic symbol which signals to stop adding to the list.
+	 * @param trie
+	 *            the trie to use to generate the symbol.
+	 * @param symbols
+	 *            the current list of symbols.
+	 * @param rng
+	 *            a random number generator.
+	 * @param userKeywords
+	 *            the list of keywords from the user's input.
+	 * @param stopSymbol
+	 *            the magic symbol which signals to stop adding to the list.
 	 */
-	protected void generateRandomSymbols(TrieNode trie, List<Symbol> symbols, Random rng, List<Symbol> userKeywords, Symbol stopSymbol) {
-		//System.out.print("(generateRandomSymbols)");
-		Symbol symbol;
+	protected void generateRandomSymbols(TrieNode trie, List<Symbol> symbols, Random rng, List<Symbol> userKeywords,
+			Symbol stopSymbol) {
+		// System.out.print("(generateRandomSymbols)");
 		do {
-			symbol = generateRandomSymbol(trie, symbols, rng, userKeywords);
-			if (symbol == null)
+			generateRandomSymbol(trie, symbols, rng, userKeywords);
+			if (this.transferSymbols[0] == null)
 				break;
-			symbols.add(symbol);
-			//System.out.print("{"+symbol+"}");
-		} while (!symbol.equals(stopSymbol));
+			if (this.transferSymbols[1] != null) {
+				symbols.add(this.transferSymbols[1]);
+			}
+			symbols.add(this.transferSymbols[0]);
+			System.out.print("{"+this.transferSymbols[0]+"}");
+		} while (!this.transferSymbols[0].equals(stopSymbol));
 	}
 
 	/**
 	 * Generates a random symbol for the next symbol in the list.
 	 *
-	 * @param trie the trie to use to generate the symbol.
-	 * @param symbols the current list of symbols.
-	 * @param rng a random number generator.
-	 * @param userKeywords the list of keywords from the user's input.
+	 * @param trie
+	 *            the trie to use to generate the symbol.
+	 * @param symbols
+	 *            the current list of symbols.
+	 * @param rng
+	 *            a random number generator.
+	 * @param userKeywords
+	 *            the list of keywords from the user's input.
 	 * @return the randomly-determined next symbol in the list.
 	 */
-	protected Symbol generateRandomSymbol(TrieNode trie, List<Symbol> symbols, Random rng, List<Symbol> userKeywords) {
-		//System.out.println("symbols=" + symbols);
-		// Trivial case: If the list of generated symbols is empty, use a random keyword, if one exists.
+	protected void generateRandomSymbol(TrieNode trie, List<Symbol> symbols, Random rng, List<Symbol> userKeywords) {
+		
+		this.transferSymbols[0] = null;
+		this.transferSymbols[1] = null;
+		
+		// System.out.println("symbols=" + symbols);
+		// Trivial case: If the list of generated symbols is empty, use a random
+		// keyword, if one exists.
 		if (symbols.isEmpty() && !userKeywords.isEmpty()) {
-			return userKeywords.get(rng.nextInt(userKeywords.size()));
+			this.transferSymbols[0] = userKeywords.get(rng.nextInt(userKeywords.size()));
+			//this.transferSymbols[1] = thi
+			
+			return;
 		}
 
 		// Find the longest context available in the list of symbols.
 		TrieNode node = findLongestContext(trie, symbols);
 
 		if (node == null) {
-			return null;
+			return;
 		}
-		
-		if (node.count <= 0) {
-			return null;
-		}
-		
-		// Pick a random number, which will be used as a count-down.
-		int total = rng.nextInt(node.count); // remember, our 'count' is the total of all children's 'usages'
 
-		// Pick a random number, which will be used as an initial index into the list of children.
-		List childNodes = node.getChildList(databaseManager);
+		if (node.count <= 0) {
+			return;
+		}
+
+		// Pick a random number, which will be used as a count-down.
+		int total = rng.nextInt(node.count); // remember, our 'count' is the
+												// total of all children's
+												// 'usages'
+
+		// Pick a random number, which will be used as an initial index into the
+		// list of children.
+		// Currently there is node weight to which word she will use, it's just
+		// totally random
+		List childNodes = node.getChildList();
 		int index = rng.nextInt(childNodes.size());
 
-		TrieNode subnode;
+		TrieNode subnode = null;
+		TrieNode lastNode = node;
 		Symbol subnodeSymbol;
 
 		do {
+			// Choose random TrieNode from children or return null if none exist
 			subnode = (TrieNode) childNodes.get(index);
+			if (subnode == null) {
+				return;
+			}
+
+			//
 			subnodeSymbol = subnode.symbol;
 
 			// If the child is a keyword the user used, use it immediately.
 			if (userKeywords.contains(subnodeSymbol)) {
-				return subnodeSymbol;
+				this.transferSymbols[0] = userKeywords.get(rng.nextInt(userKeywords.size()));
+				this.transferSymbols[1] = node.getRandomPath(subnode, rng);
+				
+				return;
 			}
 
-			// Otherwise, subtract the count of the child off the total, and look at the
-			// next word in the list.  We'll actually loop around backwards because it's faster
-			// to compare with 0 than to compare with the size of the list every iteration around
+			// Otherwise, subtract the count of the child off the total, and
+			// look at the
+			// next word in the list. We'll actually loop around backwards
+			// because it's faster
+			// to compare with 0 than to compare with the size of the list every
+			// iteration around
 			// this loop.
-			//System.out.print("{subnode.usage=" + subnode.usage + "}");
+			// System.out.print("{subnode.usage=" + subnode.usage + "}");
 			total -= subnode.usage;
 			index--;
 			if (index < 0) {
 				index = childNodes.size() - 1;
 			}
+			if (total > 0) {
+			lastNode = subnode;
+			}
 		} while (total >= 0);
-
+		this.transferSymbols[0] = subnode.symbol;
+		this.transferSymbols[1] = node.getRandomPath(subnode, rng);
 		// Once total hits zero, return the current child.
-		return subnodeSymbol;
+		return;
 	}
 
 	// ---------------- METHODS TO ANALYSE RESPONSES ----------------
 
 	/**
-	 * Calculates the amount of 'information' contained in the given candidate response.
+	 * Calculates the amount of 'information' contained in the given candidate
+	 * response.
 	 *
-	 * @param reply the candidate reply.
-	 * @param userKeywords the list of keywords in the user's original line of text.
+	 * @param reply
+	 *            the candidate reply.
+	 * @param userKeywords
+	 *            the list of keywords in the user's original line of text.
 	 * @return a measure of the amount of information in the response.
 	 */
 	protected double calculateInformation(List<Symbol> reply, List<Symbol> userKeywords) {
@@ -301,7 +374,8 @@ public class Model {
 		info += calculateInformation(backwardTrie, reply, userKeywords);
 		Collections.reverse(reply);
 
-		// Count the keywords in the reply, and scale the information value depending on how
+		// Count the keywords in the reply, and scale the information value
+		// depending on how
 		// many keywords are present.
 		int num = 0;
 		for (Symbol aReply : reply) {
@@ -317,7 +391,7 @@ public class Model {
 		}
 		return info;
 	}
-	
+
 	protected double calculateInformation2(List<Symbol> reply, List<Symbol> userKeywords, String channel) {
 		double info = 10.0;
 		int wordCount = 0;
@@ -325,26 +399,22 @@ public class Model {
 		if (!mega.keywordMemory.containsKey(channel)) {
 			mega.keywordMemory.put(channel, new HashMap());
 		}
-		HashMap tempMap = (HashMap)mega.keywordMemory.get(channel);
-		
+		HashMap tempMap = (HashMap) mega.keywordMemory.get(channel);
+
 		HashSet<Symbol> set = new HashSet<Symbol>();
 		info = info / userKeywords.size();
 		if (reply.size() < 15) {
 			info -= 0.5;
-		}
-		else if (reply.size() < 20) {
+		} else if (reply.size() < 20) {
 			info -= 1;
-		}
-		else if (reply.size() < 25) {
+		} else if (reply.size() < 25) {
 			info -= 2;
-		}
-		else if (reply.size() <= 30) {
+		} else if (reply.size() <= 30) {
 			info -= 3;
-		}
-		else {
+		} else {
 			info -= 5;
 		}
-		
+
 		for (Symbol s : reply) {
 			if (userKeywords.contains(s)) {
 				info += 0.5;
@@ -358,7 +428,7 @@ public class Model {
 				wordCount++;
 			}
 			if (tempMap.containsKey(s)) {
-				info += 0.75 * ((double)tempMap.get(s) / 100);
+				info += 0.75 * ((double) tempMap.get(s) / 100);
 				if (set.contains(s)) {
 					info -= 0.25;
 				}
@@ -368,19 +438,22 @@ public class Model {
 				info -= 0.5 * wordCount;
 				wordCount++;
 			}
-			
+
 		}
-		
+
 		return info;
 	}
 
 	/**
-	 * Calculates the amount of 'information' contained in the given list of symbols, with
-	 * respect to the given trie.
+	 * Calculates the amount of 'information' contained in the given list of
+	 * symbols, with respect to the given trie.
 	 *
-	 * @param trie the trie.
-	 * @param reply the candidate reply.
-	 * @param userKeywords the list of keywords in the user's original line of text.
+	 * @param trie
+	 *            the trie.
+	 * @param reply
+	 *            the candidate reply.
+	 * @param userKeywords
+	 *            the list of keywords in the user's original line of text.
 	 * @return a measure of the amount of information in the response.
 	 */
 	protected double calculateInformation(TrieNode trie, List<Symbol> reply, List<Symbol> userKeywords) {
@@ -400,36 +473,52 @@ public class Model {
 	}
 
 	/**
-	 * Calculates the average probability of the last symbol in a list being in each context.
+	 * Calculates the average probability of the last symbol in a list being in
+	 * each context.
 	 *
-	 * @param trie the trie.
-	 * @param symbols the list of symbols.
-	 * @return the average of the probability counts for each context this symbol is appearing in.
+	 * @param trie
+	 *            the trie.
+	 * @param symbols
+	 *            the list of symbols.
+	 * @return the average of the probability counts for each context this
+	 *         symbol is appearing in.
 	 */
 	protected double calculateAverageProbability(TrieNode trie, List<Symbol> symbols) {
 		double total = 0.0;
+		Symbol unimportantSymbol = null;
 		for (int i = 0; i < symbols.size(); i++) {
 			TrieNode node = trie;
 			if (node == null)
 				return 0.0;
+			
+			
+			
 			TrieNode parent = null;
 			for (int j = i; j < symbols.size(); j++) {
-				parent = node;
-				node = trie.getChild(symbols.get(i), false, stemmer, databaseManager);
+				
+				// If it's the unimportant node make sure we record it.
+				if (!(symbols.get(i) instanceof ImportantSymbol)) {
+					unimportantSymbol = symbols.get(i);
+				} else {
+					// Record the first imporant node
+					parent = node;
+					node = trie.getChild(symbols.get(i), unimportantSymbol, false);
+					unimportantSymbol = null;
+				}
 			}
 			assert parent != null; // because there is at least one symbol.
 			total += (double) node.usage / (double) parent.count;
 		}
 		return (total / symbols.size());
 	}
-	
+
 	public void updateFiles() {
 		try {
-        badWords = Utils.readStringSetFromFile("files/badWords.txt", true);
-        spellIgnores = Utils.readStringSetFromFile("files/spellIgnores.txt", true);
+			badWords = Utils.readStringSetFromFile("files/badWords.txt", true);
+			spellIgnores = Utils.readStringSetFromFile("files/spellIgnores.txt", true);
 		} catch (IOException e) {
-			
+
 		}
-    }
+	}
 
 }

@@ -11,10 +11,10 @@ public interface Splitter {
     /**
      * Split a string into a list of symbols.
      *
-     * @param text the string to split.
+     * @param text the string to split. 
      * @return a list of Symbol objects.
      */
-    public List<Symbol> split(String text);
+    public List<Symbol> split(String text, List<String> unimportantSymbols);
 
     /**
      * Join a list of symbols into a string.

@@ -46,19 +46,16 @@ import java.io.*;
  */
 
 public class Stemmer {
-	private char[] b;
-	private int i, /* offset into b */
+	private static char[] b;
+	private static int i, /* offset into b */
 	i_end, /* offset to end of stemmed word */
 	j, k;
 	private static final int INC = 50;
 
 	/* unit of size whereby b is increased */
-	public Stemmer() {
-		init();
-	}
 
 	// Method for reiniting Stemmer
-	public void init() {
+	public static void init() {
 		b = new char[INC];
 		i = 0;
 		i_end = 0;
@@ -69,7 +66,7 @@ public class Stemmer {
 	 * characters, you can call stem(void) to stem the word.
 	 */
 
-	public void add(char ch) {
+	public static void add(char ch) {
 		if (i == b.length) {
 			char[] new_b = new char[i + INC];
 			for (int c = 0; c < i; c++)
@@ -84,7 +81,7 @@ public class Stemmer {
 	 * a char[] array. This is like repeated calls of add(char ch), but faster.
 	 */
 
-	public void add(char[] w, int wLen) {
+	public static void add(char[] w, int wLen) {
 		if (i + wLen >= b.length) {
 			char[] new_b = new char[i + wLen + INC];
 			for (int c = 0; c < i; c++)
@@ -100,14 +97,14 @@ public class Stemmer {
 	 * reference to the internal buffer can be retrieved by getResultBuffer and
 	 * getResultLength (which is generally more efficient.)
 	 */
-	public String toString() {
+	public static String getString() {
 		return new String(b, 0, i_end);
 	}
 
 	/**
 	 * Returns the length of the word resulting from the stemming process.
 	 */
-	public int getResultLength() {
+	public static int getResultLength() {
 		return i_end;
 	}
 
@@ -116,13 +113,13 @@ public class Stemmer {
 	 * stemming process. You also need to consult getResultLength() to determine
 	 * the length of the result.
 	 */
-	public char[] getResultBuffer() {
+	public static char[] getResultBuffer() {
 		return b;
 	}
 
 	/* cons(i) is true <=> b[i] is a consonant. */
 
-	private final boolean cons(int i) {
+	private static boolean cons(int i) {
 		switch (b[i]) {
 		case 'a':
 		case 'e':
@@ -146,7 +143,7 @@ public class Stemmer {
 	 * ....
 	 */
 
-	private final int m() {
+	private static int m() {
 		int n = 0;
 		int i = 0;
 		while (true) {
@@ -180,7 +177,7 @@ public class Stemmer {
 
 	/* vowelinstem() is true <=> 0,...j contains a vowel */
 
-	private final boolean vowelinstem() {
+	private static boolean vowelinstem() {
 		int i;
 		for (i = 0; i <= j; i++)
 			if (!cons(i))
@@ -190,7 +187,7 @@ public class Stemmer {
 
 	/* doublec(j) is true <=> j,(j-1) contain a double consonant. */
 
-	private final boolean doublec(int j) {
+	private static boolean doublec(int j) {
 		if (j < 1)
 			return false;
 		if (b[j] != b[j - 1])
@@ -206,7 +203,7 @@ public class Stemmer {
 	 * cav(e), lov(e), hop(e), crim(e), but snow, box, tray.
 	 */
 
-	private final boolean cvc(int i) {
+	private static boolean cvc(int i) {
 		if (i < 2 || !cons(i) || cons(i - 1) || !cons(i - 2))
 			return false;
 		{
@@ -217,7 +214,7 @@ public class Stemmer {
 		return true;
 	}
 
-	private final boolean ends(String s) {
+	private static boolean ends(String s) {
 		int l = s.length();
 		int o = k - l + 1;
 		if (o < 0)
@@ -234,7 +231,7 @@ public class Stemmer {
 	 * k.
 	 */
 
-	private final void setto(String s) {
+	private static void setto(String s) {
 		int l = s.length();
 		int o = j + 1;
 		for (int i = 0; i < l; i++)
@@ -244,7 +241,7 @@ public class Stemmer {
 
 	/* r(s) is used further down. */
 
-	private final void r(String s) {
+	private static void r(String s) {
 		if (m() > 0)
 			setto(s);
 	}
@@ -262,7 +259,7 @@ public class Stemmer {
 	 * meetings -> meet
 	 */
 
-	private final void step1() {
+	private static void step1() {
 		if (b[k] == 's') {
 			if (ends("sses"))
 				k -= 2;
@@ -296,7 +293,7 @@ public class Stemmer {
 
 	/* step2() turns terminal y to i when there is another vowel in the stem. */
 
-	private final void step2() {
+	private static void step2() {
 		if (ends("y") && vowelinstem())
 			b[k] = 'i';
 	}
@@ -307,7 +304,7 @@ public class Stemmer {
 	 * give m() > 0.
 	 */
 
-	private final void step3() {
+	private static void step3() {
 		if (k == 0)
 			return; /* For Bug 1 */
 		switch (b[k - 1]) {
@@ -415,7 +412,7 @@ public class Stemmer {
 
 	/* step4() deals with -ic-, -full, -ness etc. similar strategy to step3. */
 
-	private final void step4() {
+	private static void step4() {
 		switch (b[k]) {
 		case 'e':
 			if (ends("icate")) {
@@ -458,7 +455,7 @@ public class Stemmer {
 
 	/* step5() takes off -ant, -ence etc., in context <c>vcvc<v>. */
 
-	private final void step5() {
+	private static void step5() {
 		if (k == 0)
 			return; /* for Bug 1 */
 		switch (b[k - 1]) {
@@ -536,7 +533,7 @@ public class Stemmer {
 
 	/* step6() removes a final -e if m() > 1. */
 
-	private final void step6() {
+	private static void step6() {
 		j = k;
 		if (b[k] == 'e') {
 			int a = m();
@@ -553,7 +550,7 @@ public class Stemmer {
 	 * the input. You can retrieve the result with
 	 * getResultLength()/getResultBuffer() or toString().
 	 */
-	public void stem() {
+	public static void stem() {
 		k = i - 1;
 		if (k > 1) {
 			step1();
@@ -574,12 +571,13 @@ public class Stemmer {
 	 * @aWord Word to input into the stemmer, should remove all numbers and
 	 * symbols.
 	 */
-	public String stem(String aWord) {
+	public static String stem(String aWord) {
+		init();
 		aWord = aWord.toLowerCase();
 		for (int i1 = 0; i1 < aWord.length(); i1++) {
 			add(aWord.charAt(i1));
 		}
 		stem();
-		return toString();
+		return getString();
 	}
 }

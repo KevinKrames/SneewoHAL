@@ -60,7 +60,7 @@ public class Bot extends Thread {
 
 	//Bot constructor
 	public Bot() {
-		databaseManager = new DatabaseManager();
+		//databaseManager = new DatabaseManager();
 		channels = BotUtilities.readFile("files/channels.txt");
 		if (BotUtilities.readObjectFromFile("files/channels.json") != null) {
 			//File exists:
@@ -83,11 +83,11 @@ public class Bot extends Thread {
 		
 		try {
 			mega = new MegaHAL(false, stemmer, databaseManager, "global");
-			megaDirty = new MegaHAL(true, stemmer, databaseManager, "global");
-			for (int i = 0; i < channelObjects.size(); i++) {
+			//megaDirty = new MegaHAL(true, stemmer, databaseManager, "global");
+			/*for (int i = 0; i < channelObjects.size(); i++) {
 				channelObjects.get(i).mega = new MegaHAL(false, stemmer, databaseManager, channelObjects.get(i).name);
 				channelObjects.get(i).megaDirty = new MegaHAL(true, stemmer, databaseManager, channelObjects.get(i).name);
-			}
+			}*/
 			//megaDirty = new MegaHAL(true);
 		} catch (IOException e) {
 
@@ -267,9 +267,9 @@ public class Bot extends Thread {
 								} else {
 									
 									//else learn the message:
-									(BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).mega).trainOnly(newMessages.get(i).message, newMessages.get(i).channel);
-									(BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).megaDirty).trainOnly(newMessages.get(i).message, newMessages.get(i).channel);
-									//megaDirty.trainOnly(messages.get(i).message, messages.get(i).channel);
+									//(BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).mega).trainOnly(newMessages.get(i).message, newMessages.get(i).channel);
+									//(BotUtilities.getChannelWithName(newMessages.get(i).channel.toLowerCase(), channelObjects).megaDirty).trainOnly(newMessages.get(i).message, newMessages.get(i).channel);
+									mega.trainOnly(newMessages.get(i).message, newMessages.get(i).channel, true);
 								}
 							}
 						}
@@ -463,6 +463,16 @@ public class Bot extends Thread {
 				} else {
 					twitchBot.send().message(message.channel, "That person is not modded.");
 				}
+			}
+		}
+		
+		//Handle ignoring channels to train sneewo:
+		if (message.message.contains("!ignoreChannel") && isOwner) {
+			if (message.message.length() > 15) {
+				List<String> ignores = BotUtilities.readFile("files/ignoreChannels.txt");
+				ignores.add(message.message.substring(15));
+				Collections.sort(ignores);
+				BotUtilities.writeFile(ignores, "files/ignores.txt");
 			}
 		}
 
@@ -702,7 +712,7 @@ public class Bot extends Thread {
 			String tempSentence = currentMega.formulateReply("", "");
 			tempSentence = BotUtilities.removeSymbols(tempSentence);
 			tempSentence = BotUtilities.removeStrings(tempSentence, "smallWords.txt", true);
-			List<Symbol> newTriggers = currentMega.splitter.split(tempSentence);
+			List<Symbol> newTriggers = currentMega.splitter.split(tempSentence, currentMega.smallWords);
 			int randomNumber = rng.nextInt(newTriggers.size()-1);
 			answer = newTriggers.get(randomNumber).toString();
 

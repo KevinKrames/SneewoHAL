@@ -81,7 +81,7 @@ public class DatabaseManager {
 			}
 		}
 		
-		root = new TrieNode(current.getLong("_id"), 
+		/*root = new TrieNode(current.getLong("_id"), 
 				null,
 				current.getString("stem"),
 				current.getString("channel"),
@@ -89,7 +89,7 @@ public class DatabaseManager {
 				current.getInteger("usage", 0),
 				map,
 				current.getBoolean("dirty", false)
-				);
+				);*/
 		return root;
 	}
 	
@@ -97,7 +97,7 @@ public class DatabaseManager {
 		if (nodeMemory.containsKey(childName)) {
 			return nodeMemory.get(childName);
 		} else {
-			TrieNode child = getNodeFromDB(parent.children.get(childName), parent);
+			TrieNode child =null;//= getNodeFromDB(parent.children.get(childName), parent);
 			//nodeMemory.put(child._id, child);
 			//System.out.println("miss");
 			return child;
@@ -112,7 +112,7 @@ public class DatabaseManager {
 			return null;
 		}
 		Document current = docs.first();
-		TrieNode child;
+		TrieNode child = null;
 		Map<String, Long> map = new HashMap<String,Long>();
 		Document childDoc = (Document)current.get("children");
 		
@@ -122,7 +122,7 @@ public class DatabaseManager {
 			}
 		}
 		
-		child = new TrieNode(current.getLong("_id"), 
+		/*child = new TrieNode(current.getLong("_id"), 
 				new Symbol(current.getString("symbol"), false),
 				current.getString("stem"),
 				current.getString("channel"),
@@ -130,7 +130,7 @@ public class DatabaseManager {
 				current.getInteger("usage", 0),
 				map,
 				current.getBoolean("dirty", false)
-				);
+				);*/
 		return child;
 		
 	}

@@ -13,8 +13,9 @@ package MegaHAL;
  */
 public class Symbol {
 
-    public static final Symbol START = new Symbol("<START>", false);
-    public static final Symbol END = new Symbol("<END>", false);
+    public static final ImportantSymbol START = new ImportantSymbol("<START>", false);
+    public static final ImportantSymbol END = new ImportantSymbol("<END>", false);
+    public static final Symbol NULL = new Symbol("null", false);
 
     private String symbol;
     private boolean keyword;

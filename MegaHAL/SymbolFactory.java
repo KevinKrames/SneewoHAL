@@ -31,5 +31,11 @@ public class SymbolFactory {
         return new Symbol(symbol, checker.isKeyword(symbol));
     }
 
+	public Symbol createImportantSymbol(String symbol) {
+		if (symbol == null)
+			return null;
+		return new ImportantSymbol(symbol, checker.isKeyword(symbol));
+	}
+
 
 }
