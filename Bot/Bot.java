@@ -120,7 +120,7 @@ public class Bot extends Thread {
 		//update timers
 		for (int i = 0; i < channelObjects.size(); i++) {
 			if (channelObjects.get(i).fitsState >= 0) {
-				MegaHAL currentMega = channelObjects.get(i).dirty?channelObjects.get(i).mega:channelObjects.get(i).megaDirty;
+				MegaHAL currentMega = mega;/*channelObjects.get(i).dirty?channelObjects.get(i).mega:channelObjects.get(i).megaDirty;*/
 			if (System.currentTimeMillis() - channelObjects.get(i).fitsTime > 1000 && channelObjects.get(i).fitsState >= 5) {
 				String temp = currentMega.formulateReply(channelObjects.get(i).answer, "");
 				if (BotUtilities.addUnderscores(temp, channelObjects.get(i).answer) != null)
@@ -708,7 +708,7 @@ public class Bot extends Thread {
 		}
 		while (done == false) {
 			done = true;
-			MegaHAL currentMega = (channel.dirty?channel.mega:channel.megaDirty);
+			MegaHAL currentMega = mega;/*= (channel.dirty?channel.mega:channel.megaDirty);*/
 			String tempSentence = currentMega.formulateReply("", "");
 			tempSentence = BotUtilities.removeSymbols(tempSentence);
 			tempSentence = BotUtilities.removeStrings(tempSentence, "smallWords.txt", true);

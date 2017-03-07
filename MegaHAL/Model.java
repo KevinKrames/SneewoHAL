@@ -251,7 +251,7 @@ public class Model {
 				symbols.add(this.transferSymbols[1]);
 			}
 			symbols.add(this.transferSymbols[0]);
-			System.out.print("{"+this.transferSymbols[0]+"}");
+			//System.out.print("{"+this.transferSymbols[0]+"}");
 		} while (!this.transferSymbols[0].equals(stopSymbol));
 	}
 
